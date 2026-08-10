@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment variables (real secrets; .env.example stays tracked)
+.env
+*.env
+!*.env.example
+
+# ADK runtime/session data
+.adk/
+
+# Editor/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
