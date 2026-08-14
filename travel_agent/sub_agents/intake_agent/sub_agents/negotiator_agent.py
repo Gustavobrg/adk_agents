@@ -10,7 +10,7 @@ that presents the options and negotiates.
 """
 from google.adk import Agent
 
-from callback_logging import log_query_to_model, log_model_response
+from ....callback_logging import log_query_to_model, log_model_response
 
 
 def create_negotiator_agent():

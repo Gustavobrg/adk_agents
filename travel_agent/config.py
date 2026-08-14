@@ -23,6 +23,15 @@ def openrouter_model() -> LiteLlm:
         api_key=os.getenv("OPENROUTER_API_KEY"),
         api_base=OPENROUTER_API_BASE,
         num_retries=30,
+        # Some OpenRouter-hosted reasoning models (e.g. nvidia/nemotron
+        # nano) don't route their "thinking" text through LiteLLM's
+        # reasoning_content field -- they just dump it straight into the
+        # normal content string, which ADK then hands to the caller as if
+        # it were the real answer. `exclude: true` is OpenRouter's unified
+        # reasoning control: the model still reasons internally, but the
+        # reasoning tokens are never sent back, so there's nothing to leak.
+        # https://openrouter.ai/docs/use-cases/reasoning-tokens
+        reasoning={"exclude": True},
     )
 
 

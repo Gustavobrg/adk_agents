@@ -9,7 +9,7 @@ response, and is the one that persists anything via update_brief.
 from google.adk import Agent
 from google.adk.tools import google_search
 
-from callback_logging import log_query_to_model, log_model_response
+from ....callback_logging import log_query_to_model, log_model_response
 
 
 def create_brainstorm_agent():

@@ -2,10 +2,13 @@
 ResearchPack — state contract for the research phase (minimal version).
 
 What's left is what phase 3 can't function without:
-  1. POI validated by geocoding, with duration and closing day.
-  2. Numeric cost anchors, so the budget can close.
-  3. Text facts, with a source, for the planner to read.
-  4. `brief_version`, which invalidates the pack when the brief changes.
+  1. Stops -- which cities the trip actually bases itself in, and how many
+     nights each gets. Resolved once, by the research phase itself, from
+     the brief's (possibly country/region-level) destinations.
+  2. POI validated by geocoding, with duration and closing day.
+  3. Numeric cost anchors, so the budget can close.
+  4. Text facts, with a source, for the planner to read.
+  5. `brief_version`, which invalidates the pack when the brief changes.
 """
 
 from __future__ import annotations
@@ -18,8 +21,20 @@ from pydantic import Field
 from ..intake_agent.trip_brief import Base
 
 MIN_POIS_PER_NIGHT = 3
-"""Coverage bar used by `coverage_shortfall` -- below this, a destination
-doesn't have enough validated POIs for phase 3 to build a real itinerary."""
+"""Coverage bar used by `coverage_shortfall` -- below this, a stop doesn't
+have enough validated POIs for phase 3 to build a real itinerary."""
+
+
+class Stop(Base):
+    """One city the trip actually bases itself in, with how many nights it
+    gets. Resolved by `base_resolver` from the brief's `destinations` --
+    which may be country/region-level ("Japan") rather than a city -- so
+    every downstream step (POI search, geo_clustering) has a real city and
+    a real night count to work with, not a country label."""
+    city: str
+    country: str | None = None
+    nights: int
+    rationale: str | None = Field(None, description="Why this city, and why this many nights")
 
 
 class Price(Base):
@@ -33,6 +48,7 @@ class POI(Base):
     poi_id: str
     name: str
     city: str
+    category: str | None = Field(None, description="landmark, museum, food, nature, neighborhood")
     validated: bool = Field(False, description="Filled in by the geocoding tool, never by the LLM")
     lat: float | None = None
     lng: float | None = None
@@ -58,28 +74,20 @@ class CostAnchors(Base):
     )
 
 
-def coverage_shortfall(
-    cities: list[str], nights: int | None, validated_pois: list[POI]
-) -> dict[str, int]:
-    """How many more validated POIs each city needs to clear the coverage
-    bar. Nights are split evenly across `cities` (the brief has no
-    per-city night breakdown) -- so 40 POIs skewed 35/5 across two cities
-    still shows up here, even though the total alone looks fine.
+def coverage_shortfall(stops: list[Stop], validated_pois: list[POI]) -> dict[str, int]:
+    """How many more validated POIs each stop needs to clear the coverage
+    bar (`MIN_POIS_PER_NIGHT` per night actually allocated to that city).
 
-    Returns {city: shortfall} only for cities below the bar; empty dict
-    when nights/cities aren't known yet or coverage is already sufficient
-    everywhere.
+    Returns {city: shortfall} only for stops below the bar; empty dict when
+    there are no stops yet or coverage is already sufficient everywhere.
     """
-    if not cities or not nights:
-        return {}
-    threshold = ceil(MIN_POIS_PER_NIGHT * nights / len(cities))
     counts: dict[str, int] = {}
     for poi in validated_pois:
         counts[poi.city] = counts.get(poi.city, 0) + 1
     return {
-        city: threshold - counts.get(city, 0)
-        for city in cities
-        if counts.get(city, 0) < threshold
+        stop.city: ceil(MIN_POIS_PER_NIGHT * stop.nights) - counts.get(stop.city, 0)
+        for stop in stops
+        if counts.get(stop.city, 0) < ceil(MIN_POIS_PER_NIGHT * stop.nights)
     }
 
 
@@ -90,6 +98,7 @@ class ResearchPack(Base):
     complete: bool = False
     generated_at: datetime | None = None
 
+    stops: list[Stop] = Field(default_factory=list)
     pois: list[POI] = Field(default_factory=list)
     costs: dict[str, Price] = Field(
         default_factory=dict,
@@ -107,14 +116,14 @@ class ResearchPack(Base):
         found = {p.brief_item for p in self.validated_pois()}
         return [a.name for a in brief.attractions if a.priority == "must" and a.name not in found]
 
-    def undercovered_cities(self, brief) -> list[str]:
-        cities = [d.name for d in brief.destinations if d.decided]
-        return list(coverage_shortfall(cities, brief.hard.nights, self.validated_pois()))
+    def undercovered_cities(self) -> list[str]:
+        return list(coverage_shortfall(self.stops, self.validated_pois()))
 
     def ready_for_planning(self, brief) -> bool:
         return (
             brief.version == self.brief_version
+            and bool(self.stops)
             and not self.missing_musts(brief)
-            and not self.undercovered_cities(brief)
+            and not self.undercovered_cities()
             and len(self.validated_pois()) > 0
         )

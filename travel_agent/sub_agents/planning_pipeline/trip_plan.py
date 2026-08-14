@@ -16,7 +16,6 @@ the brief version changes.
 
 from __future__ import annotations
 
-from datetime import date as _date
 from datetime import datetime
 
 from pydantic import Field
@@ -35,7 +34,7 @@ class ScheduledPoi(Base):
 
 class DayPlan(Base):
     day_index: int
-    date: _date | None = None
+    date: str | None = Field(None, description="ISO 8601 date (YYYY-MM-DD), or null if exact dates aren't set")
     weekday: int | None = Field(None, description="0=Monday ... 6=Sunday, null if exact dates aren't set")
     city: str
     items: list[ScheduledPoi] = Field(default_factory=list)
@@ -74,6 +73,22 @@ class LodgingTransportResult(Base):
     """LLM output_schema for the lodging+transport step."""
     lodging: list[LodgingChoice] = Field(default_factory=list)
     transport: list[TransportLeg] = Field(default_factory=list)
+
+
+class DayDistributionResult(Base):
+    """LLM output_schema for the day-distribution step.
+
+    A bare `list[DayPlan]` root schema doesn't work as `output_schema`
+    through the LiteLlm/OpenRouter path: ADK's LiteLlm integration only
+    recognizes BaseModel schemas when building the provider's structured
+    -output request (see `_to_litellm_response_format` in
+    google/adk/models/lite_llm.py), so a list[...] root silently gets NO
+    schema sent to the model at all -- it's left to freely invent whatever
+    wrapper shape it wants, which then fails validation against the exact
+    list type. Wrapping it in a named field sidesteps that entirely, same
+    as SelectionResult/LodgingTransportResult above.
+    """
+    days: list[DayPlan] = Field(default_factory=list)
 
 
 class TripPlan(Base):

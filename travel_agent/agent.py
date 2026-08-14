@@ -52,12 +52,20 @@ class Coordinator(BaseAgent):
         intake_agent, research_pipeline, planning_pipeline = self.sub_agents
         state = ctx.session.state
         brief = state.get("brief")
+        intake_ran = False
 
         if not brief or brief.get("status") != BriefStatus.confirmed.value:
             # Still in discovery -- only intake_agent talks to the user.
+            intake_ran = True
             async for event in intake_agent.run_async(ctx):
                 yield event
-            return
+            # Re-read: intake_agent may have just confirmed the brief this
+            # very turn (the user's final "yes"). If so, fall through
+            # below to start research/planning immediately instead of
+            # waiting for the next user message to notice.
+            brief = ctx.session.state.get("brief")
+            if not brief or brief.get("status") != BriefStatus.confirmed.value:
+                return
 
         version = brief.get("version")
         ran_a_pipeline = False
@@ -76,7 +84,7 @@ class Coordinator(BaseAgent):
             async for event in planning_pipeline.run_async(ctx):
                 yield event
 
-        if not ran_a_pipeline:
+        if not ran_a_pipeline and not intake_ran:
             # Confirmed brief, research and plan both already current for
             # this version -- there's nothing left to compute. Hand the
             # turn to intake_agent so the user still has someone to talk

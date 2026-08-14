@@ -71,8 +71,11 @@ def update_brief(patch: Dict[str, Any], tool_context: ToolContext) -> Dict[str, 
                 earliest/latest. Never "start"/"end"/"check_in"/
                 "check_out"/"root"/"value" -- they don't exist in the schema.
               - hard.budget_ceiling: {"amount": 8000, "currency": "BRL"}.
-              - origin: {"city": "Goiânia", "country": "BR",
-                "departure_airports": ["GYN"], "passport_countries": ["BR"]}.
+              - origin: {"city": "<the user's actual city>", "country": "BR",
+                "departure_airports": ["<their actual airport IATA code>"],
+                "passport_countries": ["BR"]} -- illustrative shape only,
+                never reuse these literal placeholder values as if they
+                were the user's real answer.
               - travelers: one object per person, never a count --
                 [{"label": "me", "age_band": "adult", "interests": ["beach"]}].
               - destinations: [{"name": "Lisbon", "country": "PT",

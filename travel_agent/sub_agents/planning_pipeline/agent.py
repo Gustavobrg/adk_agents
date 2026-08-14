@@ -12,6 +12,10 @@ in Ueno, dinner in Yanaka".
       3. day_distribution_agent -- LLM: order each day's cluster into blocks
       4. lodging_transport_agent -- LLM: one lodging area per city + transport legs
       5. plan_assembler        -- code: budget arithmetic + final TripPlan
+      6. plan_presenter        -- LLM: writes the TripPlan up as Markdown (the
+                                   pipeline's actual user-facing message)
+      7. plan_artifact         -- code: saves that Markdown as a downloadable
+                                   .md artifact via ADK's artifact service
 
 Steps 1, 3, 4 are LLM, but only ever see hard constraints already resolved
 by code (a POI count, a geographic cluster, a weekday) -- they decide
@@ -34,17 +38,18 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import AsyncGenerator
 
-from google.adk.agents import Agent, BaseAgent, InvocationContext, SequentialAgent
+from google.adk.agents import Agent, BaseAgent, Context, InvocationContext, SequentialAgent
 from google.adk.events import Event, EventActions
 from google.genai import types
 
-from callback_logging import log_model_response, log_query_to_model
+from ...callback_logging import log_model_response, log_query_to_model
 
 from ..intake_agent.trip_brief import TripBrief
 from ...prompts import NO_USER_CONTACT
-from ..research_pipeline.research_pack import POI, Price
+from ..research_pipeline.research_pack import POI, Price, Stop
 from .trip_plan import (
     BudgetLine,
+    DayDistributionResult,
     DayPlan,
     LodgingChoice,
     LodgingTransportResult,
@@ -102,25 +107,31 @@ def _create_selection_agent():
             validated POIs, and a hard capacity number below. Select at most
             `max_pois` POIs total from `research.pois` where `validated` is
             true -- that number already accounts for nights × pace, you don't
-            recompute or override it.
+            recompute or override it. The one exception is tier 1 below:
+            `must`-priority attractions are never dropped for capacity, even
+            if including all of them pushes the total past `max_pois`.
 
             Priority order, highest first:
             1. Any validated POI whose `brief_item` matches a brief
-               `attractions` entry with `priority: must` -- never drop
-               one of these if capacity allows it.
+               `attractions` entry with `priority: must` -- include ALL of
+               these regardless of `max_pois`; a `must` means the trip
+               makes no sense without it, so it overrides the cap rather
+               than competing for a slot in it.
             2. Validated POIs whose `brief_item` matches a `priority: nice`
                attraction.
             3. Validated POIs with no `brief_item` (discovered candidates)
                that best fit the travelers' `interests` and
                `soft.trip_themes`.
             4. Validated POIs matching a `priority: optional` attraction.
-            Cut from the bottom of this order first when something has to
-            give.
+            Fill tiers 2-4 only up to whatever room is left under
+            `max_pois` after tier 1. Cut from the bottom of this order
+            first when something has to give.
 
             Within that order, prefer a spread across the POIs' `city`
-            and `category`-like variety over picking every candidate from
-            one neighborhood -- a day of five museums back to back is a
-            worse itinerary than a mixed one, even if both fit the count.
+            and `category` (landmark, museum, food, nature, neighborhood)
+            over picking every candidate from one bucket -- a day of five
+            museums back to back is a worse itinerary than a mixed one,
+            even if both fit the count.
 
             Capacity: {selection_capacity}
             Confirmed trip brief: {brief}
@@ -151,19 +162,6 @@ def _day_cluster(day_index: int, day_date: date | None, city: str, pois: list[PO
         "weekday": day_date.weekday() if day_date else None,
         "city": city,
         "pois": [p.model_dump(mode="json") for p in pois],
-    }
-
-
-def _split_nights_across_cities(cities: list[str], nights: int) -> dict[str, int]:
-    """Even split with the remainder going to earliest cities in brief order --
-    the brief has no per-city night breakdown to read."""
-    if not cities:
-        return {}
-    base = nights // len(cities)
-    remainder = nights % len(cities)
-    return {
-        city: max(1, base + (1 if i < remainder else 0))
-        for i, city in enumerate(cities)
     }
 
 
@@ -210,10 +208,14 @@ def _kmeans(points: list[tuple[float, float]], k: int, iterations: int = 25) -> 
 
 
 class GeoClustering(BaseAgent):
-    """k-means per city on selected POIs' (lat, lng); assigns each cluster a
+    """k-means per stop on selected POIs' (lat, lng); assigns each cluster a
     day index and, if the brief has exact dates, a calendar date + weekday.
-    A city with more allocated nights than it has POI-clusters gets explicit
-    empty "free day" entries instead of silently having fewer days than nights."""
+    Reads `research["stops"]` (real cities + nights, resolved once by
+    research_pipeline's base_resolver) rather than `brief.destinations` --
+    the brief's destination may be a country/region, not a city, so it's
+    never itself a valid clustering key. A stop with more allocated nights
+    than it has POI-clusters gets explicit empty "free day" entries instead
+    of silently having fewer days than nights."""
 
     async def _run_async_impl(
         self, ctx: InvocationContext
@@ -222,6 +224,7 @@ class GeoClustering(BaseAgent):
         brief = TripBrief.model_validate(state["brief"])
         research = state.get("research") or {}
         all_pois = _load_pois(research)
+        stops = [Stop.model_validate(s) for s in research.get("stops") or []]
 
         selection = state.get("selection_output") or {}
         selected_ids = selection.get("selected_poi_ids") or []
@@ -230,15 +233,13 @@ class GeoClustering(BaseAgent):
         for p in selected:
             selected_by_city[p.city].append(p)
 
-        cities = [d.name for d in brief.destinations if d.decided]
-        nights_per_city = _split_nights_across_cities(cities, brief.hard.nights or len(cities) or 1)
         earliest = brief.hard.date_window.earliest
 
         clusters = []
         day_offset = 0
-        for city in cities:
-            city_pois = selected_by_city.get(city, [])
-            requested_days = nights_per_city.get(city, 1)
+        for stop in stops:
+            city_pois = selected_by_city.get(stop.city, [])
+            requested_days = stop.nights
             k = min(requested_days, len(city_pois)) if city_pois else 0
             assignments = _kmeans([(p.lat, p.lng) for p in city_pois], k) if k else []
 
@@ -246,12 +247,12 @@ class GeoClustering(BaseAgent):
                 day_offset += 1
                 cluster_pois = [city_pois[i] for i, a in enumerate(assignments) if a == cluster_idx]
                 day_date = earliest + timedelta(days=day_offset - 1) if earliest else None
-                clusters.append(_day_cluster(day_offset, day_date, city, cluster_pois))
+                clusters.append(_day_cluster(day_offset, day_date, stop.city, cluster_pois))
 
             for _ in range(k, requested_days):
                 day_offset += 1
                 day_date = earliest + timedelta(days=day_offset - 1) if earliest else None
-                clusters.append(_day_cluster(day_offset, day_date, city, []))
+                clusters.append(_day_cluster(day_offset, day_date, stop.city, []))
 
         yield Event(
             invocation_id=ctx.invocation_id,
@@ -287,13 +288,16 @@ def _create_day_distribution_agent():
             Closed-weekday handling: if a POI's `closed_weekdays` includes
             its day's `weekday` (0=Monday..6=Sunday) and `weekday` isn't
             null, try to swap it with a POI from a DIFFERENT day in the
-            SAME city that has no such conflict. If no swap resolves it,
-            keep the POI on its assigned day but say so plainly in that
-            day's `notes` -- never silently drop it and never invent a
-            different `closed_weekdays` value than what's given. If
-            `weekday` is null (exact dates aren't set yet), don't attempt
-            swaps -- just note in `notes` that this hasn't been checked
-            against real dates.
+            SAME city -- but only if BOTH sides land clean: the incoming
+            POI's own `closed_weekdays` must not include the day it's
+            moving TO, either. A swap that just relocates the conflict
+            onto the other POI doesn't count as resolved. If no such clean
+            swap exists, keep the POI on its assigned day but say so
+            plainly in that day's `notes` -- never silently drop it and
+            never invent a different `closed_weekdays` value than what's
+            given. If `weekday` is null (exact dates aren't set yet),
+            don't attempt swaps -- just note in `notes` that this hasn't
+            been checked against real dates.
 
             A cluster with an empty POI list is a free/lighter day (more
             nights allocated to that city than POIs to fill) -- return it
@@ -306,7 +310,7 @@ def _create_day_distribution_agent():
             """ + NO_USER_CONTACT,
         before_model_callback=log_query_to_model,
         after_model_callback=log_model_response,
-        output_schema=list[DayPlan],
+        output_schema=DayDistributionResult,
         output_key="day_distribution_output",
     )
 
@@ -371,7 +375,8 @@ class PlanAssembler(BaseAgent):
         all_pois = _load_pois(research)
         costs = {k: Price.model_validate(v) for k, v in (research.get("costs") or {}).items()}
 
-        days = [DayPlan.model_validate(d) for d in state.get("day_distribution_output") or []]
+        day_distribution = state.get("day_distribution_output") or {}
+        days = [DayPlan.model_validate(d) for d in day_distribution.get("days") or []]
 
         lt = state.get("lodging_transport_output") or {}
         lodging = [LodgingChoice.model_validate(l) for l in lt.get("lodging") or []]
@@ -465,6 +470,104 @@ class PlanAssembler(BaseAgent):
         )
 
 
+# --------------------------------------------------------------------------
+# Step 6: plan_presenter -- LLM. Writes the Markdown itinerary the user
+# actually reads from the already-assembled TripPlan. Unlike every other
+# LLM step in this pipeline, this one's output IS what the user sees, not
+# an input to a later code step -- so it's the one place that gets to
+# write for a reader instead of a parser, and the only step in this file
+# that doesn't carry NO_USER_CONTACT.
+# --------------------------------------------------------------------------
+
+
+def _create_plan_presenter_agent():
+    from ...config import openrouter_model
+
+    return Agent(
+        name="plan_presenter",
+        model=openrouter_model(),
+        description=(
+            "Writes the final, user-facing itinerary from the assembled "
+            "TripPlan, enriched with each attraction's real detail from "
+            "the research pack."
+        ),
+        instruction="""
+            The trip is fully planned -- `plan` below is final. Write the
+            itinerary message the user actually reads: friendly, clear,
+            well-organized Markdown, with REAL DETAIL about each place --
+            not just its bare name. `plan` only carries what time block
+            and order each activity got; for the facts to flesh it out
+            with, look up its full record in `research`'s `pois` by
+            `poi_id` -- its `category`, ticket price range if any
+            (`ticket.low`-`ticket.high` `ticket.currency`), weekly closing
+            day(s) if any (`closed_weekdays`, 0=Monday..6=Sunday), and
+            cite `source_url` if given. Never invent a detail (a
+            description, a price, hours, why it's worth visiting) that
+            isn't actually in `research` or `plan` -- if a fact isn't
+            there, just don't mention it, don't guess. Never second-guess
+            the decisions behind the plan (why a POI was dropped, why
+            this lodging area) -- just present what was decided.
+
+            Structure it day by day (date/weekday if set, city, each
+            activity's time block, duration, and the grounded details
+            above), then lodging per city, transport between cities, the
+            budget breakdown and total, and anything cut for not fitting.
+            Fold in `plan.notes` wherever they're relevant instead of
+            dumping them in a separate list. Skip a section entirely if
+            its data is empty rather than writing "none" for it. This is
+            the end of the pipeline -- don't mention next steps or offer
+            to do more.
+
+            Confirmed trip brief: {brief}
+            Trip plan: {plan}
+            Research pack (POI detail -- category, ticket, closed_weekdays,
+            source_url -- keyed by poi_id): {research}
+            """,
+        before_model_callback=log_query_to_model,
+        after_model_callback=log_model_response,
+        output_key="plan_presentation",
+    )
+
+
+# --------------------------------------------------------------------------
+# Step 7: plan_artifact -- pure code. Saves plan_presenter's Markdown as a
+# downloadable artifact via ADK's artifact service, so the final itinerary
+# isn't only a chat message -- the user (or any client hitting the API,
+# e.g. the ADK dev UI's Artifacts panel) can pull the .md file up again
+# without re-reading the whole conversation.
+# --------------------------------------------------------------------------
+
+
+class PlanArtifactWriter(BaseAgent):
+    """Persists state["plan_presentation"] (plan_presenter's Markdown
+    text) as a `.md` artifact. No-ops if the presenter produced nothing --
+    shouldn't happen, but there's no artifact to save either way."""
+
+    async def _run_async_impl(
+        self, ctx: InvocationContext
+    ) -> AsyncGenerator[Event, None]:
+        markdown = ctx.session.state.get("plan_presentation")
+        if not markdown:
+            return
+
+        brief = ctx.session.state.get("brief") or {}
+        filename = f"trip-plan-{brief.get('brief_id', 'trip')}-v{brief.get('version', 1)}.md"
+
+        actions = EventActions()
+        context = Context(ctx, event_actions=actions)
+        await context.save_artifact(
+            filename=filename,
+            artifact=types.Part.from_text(text=markdown),
+        )
+
+        yield Event(
+            invocation_id=ctx.invocation_id,
+            author=self.name,
+            branch=ctx.branch,
+            actions=actions,
+        )
+
+
 def create_planning_pipeline():
     """Create and return the planning_pipeline (phase 3) agent."""
     selection = SequentialAgent(
@@ -490,5 +593,7 @@ def create_planning_pipeline():
             _create_day_distribution_agent(),
             _create_lodging_transport_agent(),
             PlanAssembler(name="plan_assembler"),
+            _create_plan_presenter_agent(),
+            PlanArtifactWriter(name="plan_artifact"),
         ],
     )

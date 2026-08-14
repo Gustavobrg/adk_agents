@@ -4,9 +4,13 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "google-adk>=2.6.3",
+    "google-cloud-aiplatform[adk,agent-engines]>=1.164.0",
     "google-cloud-logging>=3.16.2",
     "langchain-community>=0.4.1",
     "litellm>=1.96.0",
     "python-dotenv>=1.2.2",
     "wikipedia>=1.4.0",
 ]
+
+[project.optional-dependencies]
+client = ["chainlit>=2.0"]

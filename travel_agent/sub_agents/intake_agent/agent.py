@@ -15,7 +15,7 @@ from google.adk.tools.agent_tool import AgentTool
 from .sub_agents.brainstorm_agent import create_brainstorm_agent
 from .sub_agents.negotiator_agent import create_negotiator_agent
 from .tools import confirm_assumptions, get_brief_status, run_feasibility_check, update_brief
-from callback_logging import log_query_to_model, log_model_response
+from ...callback_logging import log_query_to_model, log_model_response
 
 
 def create_intake_agent():
@@ -41,18 +41,29 @@ def create_intake_agent():
                `missing_recommended`, `declined`, `pending_assumptions`,
                and `ready_for_research` before deciding what to do.
             1b. If `missing_required` includes `destinations` (no
-               destination has `decided: true` yet), call the
-               `brainstorm_agent` tool with a short plain-text brief of
-               what's known so far (interests, origin, budget, season,
-               trip themes). It only has `google_search` -- it cannot save
-               anything itself, it just returns a text list of 3-5
-               candidates. You are the one who turns that list into
-               `destinations` entries via `update_brief`
-               (`{"name": ..., "country": ..., "decided": false,
-               "origin": "agent", "rationale": ...}`) and presents them to
-               the user as one of this turn's questions. Once the user
-               picks one, set `decided: true` on that entry with
-               `update_brief`.
+               destination has `decided: true` yet):
+               - If the user already named a specific place -- a country,
+                 region, or city ("Japan", "Tuscany", "Kyoto") -- save it
+                 directly via `update_brief` as `{"name": ..., "country":
+                 ..., "decided": true, "origin": "user"}`. Do NOT call
+                 `brainstorm_agent` and do NOT ask them to narrow it down
+                 to one city: research resolves which real cities the trip
+                 actually bases itself in later, once nights and pace are
+                 known -- a country/region-level answer is already a
+                 complete, decided destination, not a candidate to filter.
+               - Only call the `brainstorm_agent` tool when the user
+                 genuinely has no destination in mind ("surprise me",
+                 "not sure yet", "somewhere warm in December"). Give it a
+                 short plain-text brief of what's known so far (interests,
+                 origin, budget, season, trip themes). It only has
+                 `google_search` -- it cannot save anything itself, it
+                 just returns a text list of 3-5 candidates. You turn that
+                 list into `destinations` entries via `update_brief`
+                 (`{"name": ..., "country": ..., "decided": false,
+                 "origin": "agent", "rationale": ...}`) and present them
+                 to the user as one of this turn's questions. Once the
+                 user picks one, set `decided: true` on that entry with
+                 `update_brief`.
             2. If the user's message brought new information, save it with
                `update_brief`, sending ONLY the partial patch -- never
                resend the whole TripBrief, that wipes out fields collected
@@ -63,9 +74,14 @@ def create_intake_agent():
                field itself (not `confirm_assumptions`), and also rewrite
                `assumptions` without that entry, since it's now stale.
             4. As soon as `hard.nights` and `hard.budget_ceiling` are both
-               filled (or after any change to them or to `destinations`),
-               call `run_feasibility_check`. It's pure arithmetic -- rerun
-               it every time those fields change, not just once.
+               filled, call `run_feasibility_check`. It's pure arithmetic --
+               rerun it every time any field it depends on changes, not
+               just once: `hard.nights`, `hard.budget_ceiling`,
+               `destinations`, `origin`, or `hard.date_window` (the
+               international-trip lead-time check reads `origin.country`
+               and `hard.date_window.earliest`, so a date or origin
+               correction can flip the verdict just as much as a budget
+               change can).
             4b. If the `verdict` comes back `infeasible`, call the
                `negotiator_agent` tool with the `conflicts` list. It has no
                tools of its own and writes 2-3 concrete, natural-language
@@ -106,13 +122,23 @@ def create_intake_agent():
             - **Country fields are ISO 3166-1 alpha-2, not names.** `"BR"`,
               `"JP"`, `"PT"` -- never `"Brazil"`, `"Japan"`, `"Portugal"`.
               `update_brief` rejects anything else.
-            - **Never ask an open-ended question.** Every question about a
-              field comes with a concrete suggested value, based on what's
-              already been said in the conversation (or a plausible default
-              if there's nothing to go on). Wrong: "How many nights?".
-              Right: "I was thinking 7 nights -- does that work?". Wrong:
-              "What's your budget cap?". Right: "Something around $8,000
-              total works, or would you rather set a different number?".
+            - **Prefer a suggested value, but only when you have something
+              real to base it on.** If the conversation already grounds a
+              number or choice (something the user said, a value implied
+              by another field, a season/currency that points at one),
+              offer it so the user can just confirm or correct it: "I was
+              thinking 7 nights -- does that work?" beats "How many
+              nights?". But don't invent a plausible-sounding guess just
+              to avoid an open question -- a fabricated default reads as
+              presumptuous and usually just gets corrected anyway. This
+              matters most for facts about who the user is or who's
+              traveling (`travelers`, `origin.city`,
+              `origin.departure_airports`): never assume solo travel, a
+              specific city, or an airport code out of thin air. When you
+              have nothing to go on, just ask directly -- "Who's
+              traveling -- just you, or others too?" and "Which city or
+              airport will you be departing from?" are both correct here
+              even though they're open-ended.
             - Only record a field as an Assumption (`origin: agent`,
               `blocking`) when you're deciding on your own and NOT asking
               about it this turn -- e.g. a secondary (soft preference)
