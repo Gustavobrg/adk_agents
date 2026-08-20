@@ -1,0 +1,25 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "verbose_status_update",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "I wanted to reach out and let you know that, after extensive investigation, our team has determined that the root cause of the intermittent latency spikes in the payment service is a misconfigured connection pool that was capping out at 10 concurrent connections under peak load. We've since increased the pool size to 50 and deployed the fix to production, and we're monitoring the results over the next 24 hours to confirm the issue is fully resolved."}]
+      }
+    },
+    {
+      "eval_case_id": "short_input_stays_short",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Build failed."}]
+      }
+    },
+    {
+      "eval_case_id": "preserve_identifiers",
+      "prompt": {
+        "role": "user",
+        "parts": [{"text": "Just a heads up that the API endpoint /v2/users/{id}/orders is returning a 503 Service Unavailable error whenever the request_timeout_ms config value is set below 200, which seems to be happening for roughly 12% of our traffic right now."}]
+      }
+    }
+  ]
+}
