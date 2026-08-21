@@ -1,0 +1,82 @@
+[
+  {
+    "incident_id": "INC-2025-114",
+    "date": "2025-11-03",
+    "title": "Checkout timeouts after payment-gateway retry-timeout tuning",
+    "service": "checkout-service",
+    "symptoms": ["checkout failures", "payment gateway timeouts", "elevated 5xx on /checkout"],
+    "tags": ["checkout-service", "payments-service", "timeout", "retry", "deploy-regression"],
+    "root_cause": "A deploy reduced the payment-gateway client timeout from 5s to 1s to shave checkout latency; the gateway's p95 legitimately sits above 1s under load, so the shorter timeout turned slow-but-valid calls into hard failures.",
+    "resolution": "Reverted the timeout to 5s, added a circuit breaker around the gateway client, and added an alert on gateway p95 latency approaching the configured timeout."
+  },
+  {
+    "incident_id": "INC-2025-098",
+    "date": "2025-09-18",
+    "title": "Auth-service outage after JWT signing key rotation",
+    "service": "auth-service",
+    "symptoms": ["users logged out unexpectedly", "spike in InvalidTokenError", "login failures"],
+    "tags": ["auth-service", "jwt", "key-rotation", "deploy-regression"],
+    "root_cause": "New signing key was rotated in without a grace period accepting both old and new keys, invalidating all outstanding tokens instantly.",
+    "resolution": "Added dual-key verification during rotation windows; rotations now overlap old/new keys for 24h before the old key is retired."
+  },
+  {
+    "incident_id": "INC-2025-071",
+    "date": "2025-07-02",
+    "title": "Search latency spike from synonym expansion feature",
+    "service": "search-service",
+    "symptoms": ["slow search results", "elevated p99 latency", "timeout errors on /search"],
+    "tags": ["search-service", "latency", "feature-launch"],
+    "root_cause": "Newly launched synonym expansion made an uncached external dictionary lookup on every query.",
+    "resolution": "Added a local cache for synonym lookups and a feature flag to disable expansion under load."
+  },
+  {
+    "incident_id": "INC-2025-055",
+    "date": "2025-05-14",
+    "title": "Cascading failures from payments-service SDK upgrade",
+    "service": "payments-service",
+    "symptoms": ["charge endpoint errors", "SerializationError spike", "partial checkout failures"],
+    "tags": ["payments-service", "checkout-service", "sdk-upgrade", "deploy-regression"],
+    "root_cause": "A minor SDK version bump changed the shape of error response bodies, breaking downstream error parsing.",
+    "resolution": "Pinned the SDK version, added contract tests against the gateway's error response schema."
+  },
+  {
+    "incident_id": "INC-2025-033",
+    "date": "2025-03-22",
+    "title": "Rate limiting misconfiguration blocked legitimate checkout traffic",
+    "service": "api-gateway",
+    "symptoms": ["429 errors on checkout", "customer complaints about failed purchases"],
+    "tags": ["api-gateway", "checkout-service", "rate-limit", "deploy-regression"],
+    "root_cause": "A rate limit meant for a single abusive client was applied globally to the /v1/checkout route.",
+    "resolution": "Scoped the rate limit to client IP + API key instead of the route, added a dashboard for rate-limit rejections by route."
+  },
+  {
+    "incident_id": "INC-2024-201",
+    "date": "2024-12-01",
+    "title": "Notification delivery delays during SMTP relay outage",
+    "service": "notifications-service",
+    "symptoms": ["delayed order confirmation emails", "SmtpTimeoutError spike"],
+    "tags": ["notifications-service", "third-party-outage"],
+    "root_cause": "Upstream SMTP relay provider had a regional outage; no fallback relay was configured.",
+    "resolution": "Added a secondary SMTP relay with automatic failover."
+  },
+  {
+    "incident_id": "INC-2024-176",
+    "date": "2024-10-09",
+    "title": "Checkout cart total mismatch on currency rounding",
+    "service": "checkout-service",
+    "symptoms": ["cart total off by cents", "customer disputes on charged amount"],
+    "tags": ["checkout-service", "payments-service", "data-correctness"],
+    "root_cause": "Rounding was applied per line item instead of on the final total, compounding small errors.",
+    "resolution": "Moved rounding to a single pass on the final total; added a reconciliation test comparing cart total to charge amount."
+  },
+  {
+    "incident_id": "INC-2024-140",
+    "date": "2024-08-15",
+    "title": "Envoy sidecar upgrade caused intermittent connection resets",
+    "service": "api-gateway",
+    "symptoms": ["intermittent 502s", "connection reset errors", "elevated latency variance"],
+    "tags": ["api-gateway", "infra-upgrade", "deploy-regression"],
+    "root_cause": "New Envoy version changed default keepalive settings, causing premature connection resets under moderate load.",
+    "resolution": "Pinned keepalive settings explicitly instead of relying on Envoy defaults; added canary rollout for sidecar upgrades."
+  }
+]

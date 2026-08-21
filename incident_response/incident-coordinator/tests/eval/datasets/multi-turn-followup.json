@@ -1,0 +1,27 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "does_not_reask_known_fields",
+      "agent_data": {
+        "turns": [
+          {
+            "turn_index": 0,
+            "events": [
+              {"author": "user", "content": {"role": "user", "parts": [{"text": "Our checkout-service has been throwing payment timeouts and failed transactions."}]}},
+              {"author": "agent", "content": {"role": "model", "parts": [{"text": "Got it -- checkout-service seeing payment timeouts and failed transactions. When did this start?"}]}},
+              {"author": "user", "content": {"role": "user", "parts": [{"text": "About 15 minutes ago, around 2026-08-20 14:45 UTC."}]}}
+            ]
+          }
+        ]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "no_reask", "content": {"property": {"description": "the response does not re-ask for the affected service or the symptoms -- both were already given earlier in this conversation (checkout-service; payment timeouts and failed transactions)."}}},
+            {"rubric_id": "progresses", "content": {"property": {"description": "the response either offers a confirmation summary of the incident (since service, symptoms, and start time are all now known) or asks only for something genuinely still missing (e.g. a title) -- it does not ask an open-ended \"tell me more\" question."}}}
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "checkout_correlated_spike",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Checkout failures spiking\", \"affected_service\": \"checkout-service\", \"symptoms\": [\"payment timeouts\", \"elevated 5xx on /checkout\"], \"incident_start_iso\": \"2026-08-20T14:32:00Z\", \"description\": \"Customers report checkout failing across the board since ~14:32 UTC.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "finds_cochurn", "content": {"property": {"description": "spiking_signals includes both checkout-service GatewayTimeoutError and payments-service RetryExhaustedError from the same time window -- the two services' errors co-occur, which is the core correlation signal."}}},
+            {"rubric_id": "correct_origin", "content": {"property": {"description": "likely_origin_service is payments-service, since its RetryExhaustedError (gateway retries exhausted) is what precedes and explains checkout-service's GatewayTimeoutError, not the other way around."}}},
+            {"rubric_id": "explains_chain", "content": {"property": {"description": "correlation_notes explains the causal direction -- payments-service exhausting retries against its own upstream gateway is what makes checkout-service's calls to payments-service time out."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "isolated_auth_signal_no_correlation",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Occasional login token errors\", \"affected_service\": \"auth-service\", \"symptoms\": [\"JWT signature mismatch errors during login\"], \"incident_start_iso\": \"2026-08-17T09:30:00Z\", \"description\": \"A handful of users reported being logged out unexpectedly around 09:30 UTC.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "surfaces_own_signal", "content": {"property": {"description": "spiking_signals or the summary references auth-service's InvalidTokenError around the incident's start time."}}},
+            {"rubric_id": "no_fabricated_correlation", "content": {"property": {"description": "the response does not claim a multi-service correlation or an unrelated origin service -- no other service's errors spike in this window, so likely_origin_service should be null or auth-service itself, not an invented cross-service chain."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "search_cache_miss_minor",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Search cache misses ticking up\", \"affected_service\": \"search-service\", \"symptoms\": [\"more cache misses than usual on popular queries\"], \"incident_start_iso\": \"2026-08-20T12:00:00Z\", \"description\": \"Low volume, noticed by an internal dashboard rather than a customer report.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "honest_low_signal", "content": {"property": {"description": "the summary reflects that this is a low-volume, isolated signal with no strong cross-service spike found -- it does not overstate severity or invent a correlated spike that the data doesn't support."}}}
+          ]
+        }
+      }
+    }
+  ]
+}

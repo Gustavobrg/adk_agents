@@ -1,0 +1,55 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "checkout_timeout_regression",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Checkout failures spiking\", \"affected_service\": \"checkout-service\", \"symptoms\": [\"payment timeouts\", \"elevated 5xx on /checkout\"], \"incident_start_iso\": \"2026-08-20T14:32:00Z\", \"description\": \"Customers report checkout failing across the board since ~14:32 UTC.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "finds_precedent", "content": {"property": {"description": "similar_incidents includes INC-2025-114 (\"Checkout timeouts after payment-gateway retry-timeout tuning\"), and it's the closest/top match, not just present somewhere in the list."}}},
+            {"rubric_id": "playbook_from_precedent", "content": {"property": {"description": "suggested_playbook draws concretely from INC-2025-114's actual resolution (revert the timeout, add a circuit breaker, alert on gateway p95 latency) rather than generic advice."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "auth_key_rotation_outage",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Users logged out unexpectedly, login failing\", \"affected_service\": \"auth-service\", \"symptoms\": [\"users logged out unexpectedly\", \"spike in InvalidTokenError\", \"login failures\"], \"incident_start_iso\": \"2026-09-18T10:00:00Z\", \"description\": \"Started right after a signing-key rotation.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "finds_precedent", "content": {"property": {"description": "similar_incidents includes INC-2025-098 (\"Auth-service outage after JWT signing key rotation\") as the top match -- title, service, and symptoms all align closely."}}},
+            {"rubric_id": "playbook_from_precedent", "content": {"property": {"description": "suggested_playbook reflects INC-2025-098's actual resolution: dual-key verification / an overlap window between old and new signing keys during rotation."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "novel_currency_symbol_bug",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Wrong currency symbol shown at checkout for EU customers\", \"affected_service\": \"checkout-service\", \"symptoms\": [\"currency symbol shows $ instead of the local currency symbol\", \"no failed transactions, purely a display issue\"], \"incident_start_iso\": \"2026-08-20T09:00:00Z\", \"description\": \"Purely cosmetic -- charges are still correct, only the displayed symbol is wrong.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "no_overclaimed_precedent", "content": {"property": {"description": "the response does not claim strong precedent for this exact issue. If it surfaces INC-2024-176 (cart total rounding mismatch) as the closest available match, it explicitly notes that incident was about a rounding/math bug with real financial impact, not a pure currency-symbol display bug like this one -- it does not imply the two share a root cause."}}},
+            {"rubric_id": "honest_summary", "content": {"property": {"description": "the summary is honest that no incident in history closely matches a pure currency-symbol display bug, rather than manufacturing false confidence."}}}
+          ]
+        }
+      }
+    }
+  ]
+}

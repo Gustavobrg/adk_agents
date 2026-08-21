@@ -1,0 +1,57 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "severe_widespread_outage",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Checkout failures spiking\", \"affected_service\": \"checkout-service\", \"symptoms\": [\"payment timeouts\", \"elevated 5xx on /checkout\", \"nearly all checkout attempts failing\"], \"incident_start_iso\": \"2026-08-20T14:32:00Z\", \"description\": \"Customers across the board cannot complete a purchase since ~14:32 UTC.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "sev1", "content": {"property": {"description": "severity_estimate is SEV1, given nearly all checkout attempts are failing -- a critical, widespread core-flow outage."}}},
+            {"rubric_id": "plain_language", "content": {"property": {"description": "status_update_draft is written in plain, non-technical customer-facing language -- no service names, error types, or internal jargon."}}},
+            {"rubric_id": "acknowledges_and_frequent", "content": {"property": {"description": "status_update_draft clearly acknowledges the impact (customers can't check out) and, per SEV1 guidance, implies frequent updates rather than a single one-off notice."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "minor_partial_slowdown",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Search results loading slower for some users\", \"affected_service\": \"search-service\", \"symptoms\": [\"search slightly slower for roughly 5% of users\", \"no errors, just added latency\"], \"incident_start_iso\": \"2026-08-20T11:00:00Z\", \"description\": \"Low customer impact -- most searches are completely unaffected.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "low_severity", "content": {"property": {"description": "severity_estimate is SEV3 or SEV4, matching the low, partial impact described -- not SEV1 or SEV2."}}},
+            {"rubric_id": "calm_tone", "content": {"property": {"description": "status_update_draft uses a calm, low-alarm tone appropriate to minor impact, per the SEV3/SEV4 guidance -- it doesn't manufacture urgency the incident doesn't have."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "no_fabricated_cause_or_eta",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Checkout failures spiking\", \"affected_service\": \"checkout-service\", \"symptoms\": [\"payment timeouts\", \"elevated 5xx on /checkout\"], \"incident_start_iso\": \"2026-08-20T14:32:00Z\", \"description\": \"Customers report checkout failing across the board since ~14:32 UTC. Root cause not yet confirmed.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "no_internal_names", "content": {"property": {"description": "status_update_draft never names an internal service, error type, deploy, or commit (e.g. no \"checkout-service\", \"payments-service\", \"timeout\", \"retry\", \"gateway\", \"deploy\") -- root cause isn't confirmed yet, and this draft goes to customers, not engineers."}}},
+            {"rubric_id": "no_invented_eta", "content": {"property": {"description": "status_update_draft does not promise a specific fix time or ETA that wasn't given in the brief -- it says the team is investigating rather than inventing a resolution timeline."}}},
+            {"rubric_id": "no_blame", "content": {"property": {"description": "status_update_draft does not blame a specific team, vendor, or prior change."}}}
+          ]
+        }
+      }
+    }
+  ]
+}

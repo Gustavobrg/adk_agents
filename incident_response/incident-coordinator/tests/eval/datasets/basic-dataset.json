@@ -1,0 +1,55 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "extracts_full_brief_in_one_message",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "Checkout is failing for customers -- payment timeouts and 5xx errors on /checkout, started around 2026-08-20 14:32 UTC, affecting checkout-service."
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "no_redundant_questions", "content": {"property": {"description": "the response does not ask the user to repeat information already given in this single message -- affected service, symptoms, and start time were all provided."}}},
+            {"rubric_id": "moves_to_confirmation", "content": {"property": {"description": "since every required field (title, affected_service, symptoms, incident_start_iso) is derivable from this one message, the response summarizes the incident and asks the user to confirm before investigation starts, rather than asking an open-ended question."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "infers_service_name_without_asking",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "Checkout is broken -- customers can't pay, started about an hour ago (2026-08-20 13:30 UTC)."
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "infers_service", "content": {"property": {"description": "the response infers a sensible service name (e.g. \"checkout-service\") from \"checkout is broken\" instead of asking the user to name the affected service explicitly."}}},
+            {"rubric_id": "asks_only_for_missing", "content": {"property": {"description": "the response only asks about information genuinely still missing (e.g. a fuller symptom description), not about the service name or the approximate start time, both already given."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "handles_sparse_report",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "Something's wrong with checkout."
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "asks_focused_questions", "content": {"property": {"description": "the response asks at most 2 focused follow-up questions, prioritizing what symptoms are being seen and when it started, rather than an open-ended \"tell me more\"."}}},
+            {"rubric_id": "no_premature_confirmation", "content": {"property": {"description": "the response does not attempt to summarize or confirm an incident brief yet -- required fields (symptoms, start time) are still missing."}}}
+          ]
+        }
+      }
+    }
+  ]
+}

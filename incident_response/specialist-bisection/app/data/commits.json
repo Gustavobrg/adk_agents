@@ -1,0 +1,20 @@
+[
+  {"sha": "a3f9c21", "service": "checkout-service", "author": "r.almeida", "message": "Reduce payment gateway retry timeout from 5s to 1.2s to speed up checkout", "timestamp": "2026-08-20T14:02:11Z"},
+  {"sha": "9e1d0f4", "service": "checkout-service", "author": "r.almeida", "message": "Add unit tests for cart total rounding", "timestamp": "2026-08-19T10:12:00Z"},
+  {"sha": "6c2b8aa", "service": "payments-service", "author": "l.fonseca", "message": "Bump payment-gateway-sdk to 4.2.0", "timestamp": "2026-08-18T09:44:22Z"},
+  {"sha": "0f7a3de", "service": "api-gateway", "author": "t.suzuki", "message": "Tighten rate limit on /v1/checkout to 200 rps", "timestamp": "2026-08-18T16:20:05Z"},
+  {"sha": "d41b6c9", "service": "auth-service", "author": "m.gomes", "message": "Rotate JWT signing key", "timestamp": "2026-08-17T08:00:00Z"},
+  {"sha": "5aa11f2", "service": "search-service", "author": "p.silva", "message": "Add synonym expansion to product search", "timestamp": "2026-08-16T13:55:41Z"},
+  {"sha": "e8c04b7", "service": "checkout-service", "author": "j.costa", "message": "Fix off-by-one in cart item counter", "timestamp": "2026-08-15T11:30:00Z"},
+  {"sha": "77bdf01", "service": "payments-service", "author": "l.fonseca", "message": "Log full gateway response body on error", "timestamp": "2026-08-14T15:10:33Z"},
+  {"sha": "c290aa5", "service": "checkout-service", "author": "r.almeida", "message": "Refactor checkout controller for readability (no behavior change)", "timestamp": "2026-08-13T09:05:00Z"},
+  {"sha": "2f6e9d3", "service": "api-gateway", "author": "t.suzuki", "message": "Upgrade Envoy sidecar to 1.31", "timestamp": "2026-08-12T17:45:12Z"},
+  {"sha": "b81ca44", "service": "search-service", "author": "p.silva", "message": "Cache popular query results for 60s", "timestamp": "2026-08-11T12:00:00Z"},
+  {"sha": "39d7fe8", "service": "auth-service", "author": "m.gomes", "message": "Add rate limiting to /login", "timestamp": "2026-08-10T10:20:00Z"},
+  {"sha": "f10ab92", "service": "payments-service", "author": "l.fonseca", "message": "Switch default currency formatting to ISO 4217", "timestamp": "2026-08-09T14:35:00Z"},
+  {"sha": "8cde301", "service": "checkout-service", "author": "j.costa", "message": "Add feature flag for express checkout", "timestamp": "2026-08-08T09:15:00Z"},
+  {"sha": "4b6f712", "service": "notifications-service", "author": "a.reis", "message": "Migrate email templates to new renderer", "timestamp": "2026-08-07T16:50:00Z"},
+  {"sha": "1a9c5e0", "service": "checkout-service", "author": "r.almeida", "message": "Increase cart session TTL to 45 minutes", "timestamp": "2026-08-06T11:00:00Z"},
+  {"sha": "d005bb3", "service": "payments-service", "author": "l.fonseca", "message": "Add idempotency key support to charge endpoint", "timestamp": "2026-08-05T13:25:00Z"},
+  {"sha": "6f21ca8", "service": "search-service", "author": "p.silva", "message": "Reindex catalog nightly instead of hourly", "timestamp": "2026-08-04T08:40:00Z"}
+]

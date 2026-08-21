@@ -1,0 +1,34 @@
+# Default config -- used by `agents-cli eval run` / `eval grade` against
+# tests/eval/datasets/basic-dataset.json (single-turn intake cases).
+#
+# For the multi-turn follow-up dataset (datasets/multi-turn-followup.json),
+# run separately with THIS config's rubric_judge, not a built-in
+# multi-turn metric:
+#   agents-cli eval generate --dataset tests/eval/datasets/multi-turn-followup.json -o artifacts/traces-multiturn/
+#   agents-cli eval grade --traces artifacts/traces-multiturn/ --config tests/eval/eval_config.yaml
+# (`multi_turn_trajectory_quality` was tried first and rejected: its
+# auto-generated rubric depends on tool declarations from a local
+# /app-info call, which 400s for this project's plain-BaseAgent root
+# `coordinator` -- "traces will omit agent_data.agents; grading will
+# degrade" -- and it then wrongly penalizes the agent for calling tools
+# it "wasn't given". rubric_judge grades this case's own rubric_groups
+# instead, independent of that introspection path.)
+#
+# The investigation_pipeline + reporter_agent path (confirmed brief -> 4
+# concurrent A2A specialist calls -> synthesized report) is NOT covered
+# here: it depends on session state built by real tool calls
+# (save_incident_brief), which this eval framework's multi-turn replay
+# does not reconstruct, and it requires the 4 specialist servers running.
+# It's covered instead by tests/integration/test_investigation_pipeline.py
+# (a deterministic pytest against a real Runner + seeded session state).
+#
+# rubric_judge (not the built-in final_response_quality +
+# metric_spec_parameters.rubric_group_key path the eval skill documents)
+# -- verified locally that this agents-cli version's eval_utils.py never
+# implements metric_spec_parameters; see rubric_judge.py's docstring.
+metrics_to_run:
+  - rubric_judge    # LLM-judged against each case's rubric_groups.criteria
+
+custom_metrics:
+  - name: rubric_judge
+    custom_function_file: rubric_judge.py

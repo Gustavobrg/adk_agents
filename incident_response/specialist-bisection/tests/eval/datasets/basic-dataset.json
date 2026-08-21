@@ -1,0 +1,73 @@
+{
+  "eval_cases": [
+    {
+      "eval_case_id": "checkout_timeout_regression",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Checkout failures spiking\", \"affected_service\": \"checkout-service\", \"symptoms\": [\"payment timeouts\", \"elevated 5xx on /checkout\"], \"incident_start_iso\": \"2026-08-20T14:32:00Z\", \"description\": \"Customers report checkout failing across the board since ~14:32 UTC.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "identifies_suspect", "content": {"property": {"description": "suspect_commits includes commit a3f9c21 (or deploy dep-2026-0820-3), the checkout-service deploy that reduced the payment gateway retry timeout."}}},
+            {"rubric_id": "high_confidence", "content": {"property": {"description": "confidence is \"high\", since the suspect deploy's own change (timeout reduction) directly explains the reported symptoms (payment timeouts) and lands minutes before the incident."}}},
+            {"rubric_id": "cites_timing_and_content", "content": {"property": {"description": "reasoning references both the deploy's timing relative to the incident start and what the change itself did (reducing a timeout), not just one of the two."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "cart_counter_regression",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Cart item counts wrong at checkout\", \"affected_service\": \"checkout-service\", \"symptoms\": [\"cart item count off by one on the checkout page\"], \"incident_start_iso\": \"2026-08-15T12:30:00Z\", \"description\": \"Started shortly after 12pm; customers see one fewer or one extra item than what's actually in their cart.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "identifies_suspect", "content": {"property": {"description": "suspect_commits includes commit e8c04b7 (\"Fix off-by-one in cart item counter\"), deployed to checkout-service shortly before the incident."}}},
+            {"rubric_id": "reasonable_confidence", "content": {"property": {"description": "confidence is medium or high given the close timing and the direct topical match between the commit message and the reported symptom."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "unrelated_service_no_deploy",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Order confirmation emails delayed\", \"affected_service\": \"notifications-service\", \"symptoms\": [\"delayed order confirmation emails\"], \"incident_start_iso\": \"2026-08-20T10:00:00Z\", \"description\": \"Customers report confirmation emails arriving 20+ minutes late.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "honest_no_suspect", "content": {"property": {"description": "the response does not fabricate a deploy or commit for notifications-service that wasn't returned by the tools -- suspect_commits is empty or the response is explicit that no matching deploy was found."}}},
+            {"rubric_id": "low_confidence", "content": {"property": {"description": "confidence is \"low\", since no deploy to the affected service falls in the investigated window."}}}
+          ]
+        }
+      }
+    },
+    {
+      "eval_case_id": "ambiguous_benign_change",
+      "prompt": {
+        "role": "user",
+        "parts": [{
+          "text": "{\"status\": \"confirmed\", \"title\": \"Elevated payment failures\", \"affected_service\": \"payments-service\", \"symptoms\": [\"elevated payment failures\"], \"incident_start_iso\": \"2026-08-14T16:00:00Z\", \"description\": \"Started around 4pm; no other detail yet.\"}"
+        }]
+      },
+      "rubric_groups": {
+        "criteria": {
+          "rubrics": [
+            {"rubric_id": "flags_timing_match", "content": {"property": {"description": "suspect_commits includes commit 77bdf01, the closest payments-service deploy before the incident, since it's the timing-closest candidate."}}},
+            {"rubric_id": "not_overconfident", "content": {"property": {"description": "confidence is NOT \"high\" -- commit 77bdf01 only changed logging (\"Log full gateway response body on error\"), which does not plausibly explain elevated payment failures, and the response's reasoning reflects that mismatch instead of claiming a strong causal match."}}}
+          ]
+        }
+      }
+    }
+  ]
+}

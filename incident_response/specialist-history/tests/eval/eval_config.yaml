@@ -1,0 +1,10 @@
+metrics_to_run:
+  - output_schema_valid       # deterministic: response is valid JSON matching IncidentHistoryFinding
+  - rubric_judge              # LLM-judged against this case's rubric_groups.criteria
+
+custom_metrics:
+  - name: output_schema_valid
+    custom_function_file: schema_check.py
+
+  - name: rubric_judge
+    custom_function_file: rubric_judge.py
