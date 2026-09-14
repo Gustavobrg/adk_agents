@@ -9,6 +9,7 @@ Portfolio and testing ground for AI agents built with [Google's Agent Developmen
 | [travel_agent](travel_agent/README.md) | Ready | Multi-agent trip planner. Interviews the traveler, then runs headless research and planning pipelines to produce a day-by-day, budgeted itinerary. Deployable to Vertex AI Agent Engine, with a Chainlit chat client included. |
 | [incident_response](incident_response/README.md) | Ready | A2A multi-agent incident responder. A coordinator gathers an incident brief, then fans out concurrently over the real A2A protocol to 4 independently deployable specialists (bisection, error correlation, incident history, customer comms) and synthesizes a report. 5 separate `agents-cli`-scaffolded projects, each with its own eval suite. |
 | [caveman-agent](caveman-agent/README.md) | Ready | "Grunk the caveman": compresses verbose, jargon-heavy text (emails, docs, tickets) into terse technical grunts, keeping facts/numbers/identifiers intact. Single-agent, `agents-cli`-scaffolded, runs on OpenRouter via `LiteLlm`, served over A2A. |
+| [customer_support](customer_support/README.md) | Ready | E-commerce customer support agent demonstrating strategic tool combination and error handling: checks order status, processes refunds, and escalates to a human supervisor. Single-agent, in-memory order DB, runs on OpenRouter via `LiteLlm`. |
 
 ## Requirements
 
